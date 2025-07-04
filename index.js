@@ -15,7 +15,7 @@ const wss = new WebSocket.Server({ server });
 const PORT = process.env.PORT || 5000;
 const MONGO_URI = process.env.MONGO_URI;
 
-// Nodemailer setup with TLS fix
+// Nodemailer setup
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
@@ -23,7 +23,7 @@ const transporter = nodemailer.createTransport({
     pass: process.env.EMAIL_PASS,
   },
   tls: {
-    rejectUnauthorized: false, // For dev only
+    rejectUnauthorized: false,
   },
 });
 
@@ -36,9 +36,7 @@ const sendRecurringTaskEmail = async (task) => {
     html: `
       <h3>New Recurring Task Created</h3>
       <p><strong>Title:</strong> ${task.title}</p>
-      <p><strong>Due Date:</strong> ${new Date(
-        task.dueDate
-      ).toLocaleDateString()}</p>
+      <p><strong>Due Date:</strong> ${new Date(task.dueDate).toLocaleDateString()}</p>
       <p><strong>Priority:</strong> ${task.priority}</p>
       <p><strong>Category:</strong> ${task.category}</p>
       <p><strong>Recurrence:</strong> ${task.recurrence}</p>
@@ -53,17 +51,28 @@ const sendRecurringTaskEmail = async (task) => {
   }
 };
 
-// Middleware
+// === CORS FIX START ===
 app.use(
   cors({
     origin: "https://tubular-pasca-920451.netlify.app",
-    methods: ["GET", "POST", "PUT", "DELETE"],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     credentials: true,
   })
 );
+app.options("*", cors()); // handle preflight
+
+// Manually add headers
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "https://tubular-pasca-920451.netlify.app");
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  next();
+});
+// === CORS FIX END ===
+
 app.use(express.json());
 
-// MongoDB connection (without deprecated options)
+// MongoDB connection
 mongoose
   .connect(MONGO_URI)
   .then(() => console.log("MongoDB connected"))
@@ -79,29 +88,20 @@ const User = mongoose.model("Users", userSchema);
 const taskSchema = new mongoose.Schema(
   {
     title: { type: String, required: true },
-    priority: {
-      type: String,
-      enum: ["High", "Medium", "Low"],
-      default: "Medium",
-    },
+    priority: { type: String, enum: ["High", "Medium", "Low"], default: "Medium" },
     category: { type: String, default: "General" },
     dueDate: { type: Date, required: true },
-    recurrence: {
-      type: String,
-      enum: ["None", "Daily", "Weekly", "Monthly"],
-      default: "None",
-    },
+    recurrence: { type: String, enum: ["None", "Daily", "Weekly", "Monthly"], default: "None" },
   },
   { timestamps: true }
 );
 const Task = mongoose.model("Tasks", taskSchema);
 
-// WebSocket
+// WebSocket setup
 wss.on("connection", (ws) => {
   console.log("WebSocket client connected");
   ws.on("close", () => console.log("WebSocket client disconnected"));
 });
-
 const broadcastTaskUpdate = (type, task) => {
   wss.clients.forEach((client) => {
     if (client.readyState === WebSocket.OPEN) {
@@ -110,14 +110,12 @@ const broadcastTaskUpdate = (type, task) => {
   });
 };
 
-// === FIX: Root route to avoid "Cannot GET /" ===
+// Root route
 app.get("/", (req, res) => {
   res.send("SmartTasker Backend API is running!");
 });
 
-// Routes
-
-// Signup
+// Auth: Signup
 app.post("/api/signup", async (req, res) => {
   const { email, password } = req.body || {};
   if (!email || !password)
@@ -138,7 +136,7 @@ app.post("/api/signup", async (req, res) => {
   }
 });
 
-// Login
+// Auth: Login
 app.post("/api/login", async (req, res) => {
   const { email, password } = req.body || {};
   if (!email || !password)
@@ -153,9 +151,7 @@ app.post("/api/login", async (req, res) => {
     if (!isMatch)
       return res.status(401).json({ message: "Invalid email or password" });
 
-    return res
-      .status(200)
-      .json({ message: "Login successful", email: user.email });
+    return res.status(200).json({ message: "Login successful", email: user.email });
   } catch (error) {
     console.error("Login error:", error);
     return res.status(500).json({ message: "Server error" });
@@ -180,10 +176,7 @@ app.get("/api/tasks/date/:date", async (req, res) => {
     const end = new Date(start);
     end.setDate(end.getDate() + 1);
 
-    const tasks = await Task.find({
-      dueDate: { $gte: start, $lt: end },
-    }).sort({ dueDate: 1 });
-
+    const tasks = await Task.find({ dueDate: { $gte: start, $lt: end } }).sort({ dueDate: 1 });
     res.json(tasks);
   } catch (err) {
     console.error("Get tasks by date error:", err);
@@ -200,18 +193,11 @@ app.get("/api/dashboard-summary", async (req, res) => {
     tomorrow.setDate(today.getDate() + 1);
 
     const scheduledTasks = await Task.find().sort({ dueDate: 1 });
-    const deadlineReminders = await Task.find({
-      dueDate: { $gte: today, $lt: tomorrow },
-    });
+    const deadlineReminders = await Task.find({ dueDate: { $gte: today, $lt: tomorrow } });
     const recurringTasks = await Task.find({ recurrence: { $ne: "None" } });
     const highPriorityTasks = await Task.find({ priority: "High" });
 
-    res.json({
-      scheduledTasks,
-      deadlineReminders,
-      recurringTasks,
-      highPriorityTasks,
-    });
+    res.json({ scheduledTasks, deadlineReminders, recurringTasks, highPriorityTasks });
   } catch (err) {
     console.error("Dashboard summary error:", err);
     res.status(500).json({ message: "Failed to fetch dashboard summary" });
@@ -221,21 +207,8 @@ app.get("/api/dashboard-summary", async (req, res) => {
 // Create task
 app.post("/api/tasks", async (req, res) => {
   try {
-    const {
-      title,
-      priority,
-      category,
-      dueDate,
-      recurrence = "None",
-    } = req.body;
-
-    const newTask = new Task({
-      title,
-      priority,
-      category,
-      dueDate: new Date(dueDate),
-      recurrence,
-    });
+    const { title, priority, category, dueDate, recurrence = "None" } = req.body;
+    const newTask = new Task({ title, priority, category, dueDate: new Date(dueDate), recurrence });
 
     const savedTask = await newTask.save();
     broadcastTaskUpdate("TASK_ADDED", savedTask);
@@ -260,8 +233,7 @@ app.put("/api/tasks/:id", async (req, res) => {
       { new: true }
     );
 
-    if (!updatedTask)
-      return res.status(404).json({ message: "Task not found" });
+    if (!updatedTask) return res.status(404).json({ message: "Task not found" });
 
     broadcastTaskUpdate("TASK_UPDATED", updatedTask);
     res.json(updatedTask);
@@ -275,8 +247,7 @@ app.put("/api/tasks/:id", async (req, res) => {
 app.delete("/api/tasks/:id", async (req, res) => {
   try {
     const deletedTask = await Task.findByIdAndDelete(req.params.id);
-    if (!deletedTask)
-      return res.status(404).json({ message: "Task not found" });
+    if (!deletedTask) return res.status(404).json({ message: "Task not found" });
 
     broadcastTaskUpdate("TASK_DELETED", deletedTask);
     res.status(204).send();
@@ -285,4 +256,5 @@ app.delete("/api/tasks/:id", async (req, res) => {
   }
 });
 
+// Start the server
 server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
