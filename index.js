@@ -50,14 +50,14 @@ const sendRecurringTaskEmail = async (task) => {
 // === CORS Configuration ===
 app.use(
   cors({
-    origin: "https://smart-tasker-frontend-dlpo.vercel.app/",
+    origin: "https://smart-tasker-frontend-dlpo.vercel.app",
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     credentials: true,
   })
 );
 app.options("*", cors());
 app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "https://smart-tasker-frontend-dlpo.vercel.app/");
+  res.header("Access-Control-Allow-Origin", "https://smart-tasker-frontend-dlpo.vercel.app");
   res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
   res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
   next();
