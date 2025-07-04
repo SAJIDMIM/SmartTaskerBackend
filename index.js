@@ -50,7 +50,7 @@ const sendRecurringTaskEmail = async (task) => {
   }
 };
 
-// CORS setup
+// CORS setup - FIXED: Remove the app.options("*", cors()) line
 app.use(
   cors({
     origin: allowedOrigin,
@@ -59,7 +59,6 @@ app.use(
     allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"],
   })
 );
-app.options("*", cors());
 
 // Middleware: Log all requests
 app.use((req, res, next) => {
