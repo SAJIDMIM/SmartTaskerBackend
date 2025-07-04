@@ -56,7 +56,7 @@ const sendRecurringTaskEmail = async (task) => {
 // Middleware
 app.use(
   cors({
-    origin: "http://localhost:3000",
+    origin: "https://n2z4r3.csb.app",
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true,
   })
