@@ -56,7 +56,7 @@ const sendRecurringTaskEmail = async (task) => {
 // Middleware
 app.use(
   cors({
-    origin: "https://n2z4r3.csb.app",
+    origin: "https://tubular-pasca-920451.netlify.app/",
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true,
   })
