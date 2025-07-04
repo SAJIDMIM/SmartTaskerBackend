@@ -55,18 +55,12 @@ app.use(
     credentials: true,
   })
 );
-app.options("*", cors());
-app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "https://smart-tasker-frontend-dlpo.vercel.app");
-  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-  next();
-});
 
 app.use(express.json());
 
 // MongoDB connection
-mongoose.connect(MONGO_URI)
+mongoose
+  .connect(MONGO_URI)
   .then(() => console.log("MongoDB connected"))
   .catch((err) => console.error("MongoDB connection error:", err));
 
@@ -80,10 +74,18 @@ const User = mongoose.model("Users", userSchema);
 const taskSchema = new mongoose.Schema(
   {
     title: { type: String, required: true },
-    priority: { type: String, enum: ["High", "Medium", "Low"], default: "Medium" },
+    priority: {
+      type: String,
+      enum: ["High", "Medium", "Low"],
+      default: "Medium",
+    },
     category: { type: String, default: "General" },
     dueDate: { type: Date, required: true },
-    recurrence: { type: String, enum: ["None", "Daily", "Weekly", "Monthly"], default: "None" },
+    recurrence: {
+      type: String,
+      enum: ["None", "Daily", "Weekly", "Monthly"],
+      default: "None",
+    },
   },
   { timestamps: true }
 );
@@ -94,6 +96,7 @@ wss.on("connection", (ws) => {
   console.log("WebSocket client connected");
   ws.on("close", () => console.log("WebSocket client disconnected"));
 });
+
 const broadcastTaskUpdate = (type, task) => {
   wss.clients.forEach((client) => {
     if (client.readyState === WebSocket.OPEN) {
@@ -105,6 +108,7 @@ const broadcastTaskUpdate = (type, task) => {
 // Routes
 app.get("/", (req, res) => res.send("SmartTasker Backend API is running!"));
 
+// Sign up
 app.post("/api/signup", async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password)
@@ -120,10 +124,12 @@ app.post("/api/signup", async (req, res) => {
     await newUser.save();
     return res.status(201).json({ message: "User registered successfully" });
   } catch (error) {
+    console.error(error);
     return res.status(500).json({ message: "Server error" });
   }
 });
 
+// Login
 app.post("/api/login", async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password)
@@ -140,11 +146,11 @@ app.post("/api/login", async (req, res) => {
 
     return res.status(200).json({ message: "Login successful", email: user.email });
   } catch (error) {
+    console.error(error);
     return res.status(500).json({ message: "Server error" });
   }
 });
 
-// Task routes...
-// (same as previous code, no changes here)
+// You can add Task CRUD routes here...
 
 server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
